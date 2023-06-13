@@ -1,14 +1,15 @@
 import type {PanEvent, TapEvent, KeyEvent, UIEvent, MoveEvent} from "core/ui_events"
 import {Dimensions} from "core/enums"
 import type * as p from "core/properties"
+import type {Quad} from "../../glyphs/quad"
 import type {Rect} from "../../glyphs/rect"
 import type {GlyphRenderer} from "../../renderers/glyph_renderer"
 import type {ColumnDataSource} from "../../sources/column_data_source"
 import {EditTool, EditToolView} from "./edit_tool"
 import {tool_icon_box_edit} from "styles/icons.css"
 
-export interface HasRectCDS {
-  glyph: Rect
+export interface HasSquareCDS {
+  glyph: Rect | Quad
   data_source: ColumnDataSource
 }
 
@@ -47,26 +48,59 @@ export class BoxEditToolView extends EditToolView {
     const cds = renderer.data_source
     const [x0, x1] = renderer_view.coordinates.x_scale.r_invert(sx0, sx1)
     const [y0, y1] = renderer_view.coordinates.y_scale.r_invert(sy0, sy1)
-    const [x, y] = [(x0+x1)/2, (y0+y1)/2]
-    const [w, h] = [x1-x0, y1-y0]
-    const [xkey, ykey] = [glyph.x.field, glyph.y.field]
-    const [wkey, hkey] = [glyph.width.field, glyph.height.field]
+    const [left, bottom, right, top] = [glyph.left.field, glyph.bottom.field, glyph.right.field, glyph.top.field]
     if (append) {
       this._pop_glyphs(cds, this.model.num_objects)
-      if (xkey) cds.get_array(xkey).push(x)
-      if (ykey) cds.get_array(ykey).push(y)
-      if (wkey) cds.get_array(wkey).push(w)
-      if (hkey) cds.get_array(hkey).push(h)
-      this._pad_empty_columns(cds, [xkey, ykey, wkey, hkey])
+      if (left) cds.get_array(left).push(x0)
+      if (bottom) cds.get_array(bottom).push(y0)
+      if (right) cds.get_array(right).push(x1)
+      if (top) cds.get_array(top).push(y0)
+      this._pad_empty_columns(cds, [left, bottom, right, top])
     } else {
-      const index = cds.data[xkey].length - 1
-      if (xkey) cds.data[xkey][index] = x
-      if (ykey) cds.data[ykey][index] = y
-      if (wkey) cds.data[wkey][index] = w
-      if (hkey) cds.data[hkey][index] = h
+      const index = cds.data[left].length - 1
+      if (left) cds.data[left][index] = x0
+      if (bottom) cds.data[bottom][index] = y0
+      if (right) cds.data[right][index] = x1
+      if (top) cds.data[top][index] = y1
     }
     this._emit_cds_changes(cds, true, false, emit)
   }
+
+  _drag_quad_points(ev: UIEvent, renderers: (GlyphRenderer & HasSquareCDS)[], dim: Dimensions = "both"): void {
+    if (this._basepoint == null)
+      return
+
+    const [bx, by] = this._basepoint
+    for (const renderer of renderers) {
+      const basepoint = this._map_drag(bx, by, renderer)
+      const point = this._map_drag(ev.sx, ev.sy, renderer)
+      if (point == null || basepoint == null) {
+        continue
+      }
+      const [x, y] = point
+      const [px, py] = basepoint
+      const [dx, dy] = [x-px, y-py]
+      // Type once dataspecs are typed
+      const glyph: any = renderer.glyph
+      const cds = renderer.data_source
+      const [left, bottom, right, top] = [glyph.left.field, glyph.bottom.field, glyph.right.field, glyph.top.field]
+
+      for (const index of cds.selected.indices) {
+        if ((left && bottom) && (dim == "width" || dim == "both")) {
+          cds.data[left][index] += dx
+          cds.data[right][index] += dx
+        }
+        if ((top && right) && (dim == "height" || dim == "both")) {
+          cds.data[top][index] += dy
+          cds.data[bottom][index] += dy
+        }
+      }
+      cds.change.emit()
+    }
+    this._basepoint = [ev.sx, ev.sy]
+  }
+
+
 
   _update_box(ev: UIEvent, append: boolean = false, emit: boolean = false): void {
     if (this._draw_basepoint == null)
@@ -117,7 +151,7 @@ export class BoxEditToolView extends EditToolView {
     } else {
       if (this._basepoint == null)
         return
-      this._drag_points(ev, this.model.renderers)
+      this._drag_quad_points(ev, this.model.renderers)
     }
   }
 
@@ -139,7 +173,7 @@ export namespace BoxEditTool {
   export type Props = EditTool.Props & {
     dimensions: p.Property<Dimensions>
     num_objects: p.Property<number>
-    renderers: p.Property<(GlyphRenderer & HasRectCDS)[]>
+    renderers: p.Property<(GlyphRenderer & HasSquareCDS)[]>
   }
 }
 
@@ -149,7 +183,7 @@ export class BoxEditTool extends EditTool {
   declare properties: BoxEditTool.Props
   declare __view_type__: BoxEditToolView
 
-  override renderers: (GlyphRenderer & HasRectCDS)[]
+  override renderers: (GlyphRenderer & HasSquareCDS)[]
 
   constructor(attrs?: Partial<BoxEditTool.Attrs>) {
     super(attrs)
