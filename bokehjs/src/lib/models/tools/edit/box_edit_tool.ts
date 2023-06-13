@@ -124,6 +124,11 @@ export class BoxEditToolView extends EditToolView {
 
   private _drag_rect_point(glyph: any, cds: ColumnDataSource, dim: Dimensions, dx: number, dy: number) {
     const [xkey, ykey] = [glyph.x.field, glyph.y.field]
+
+    // It wont move with TypedArray
+    if (!(cds.data[xkey] instanceof Array)) cds.data[xkey] = Array.from(cds.data[xkey])
+    if (!(cds.data[ykey] instanceof Array)) cds.data[ykey] = Array.from(cds.data[ykey])
+
     for (const index of cds.selected.indices) {
       if (xkey && (dim == "width" || dim == "both")) {
         cds.data[xkey][index] += dx
@@ -136,6 +141,12 @@ export class BoxEditToolView extends EditToolView {
 
   private _drag_quad_point(glyph: any, cds: ColumnDataSource, dim: Dimensions, dx: number, dy: number) {
     const [left, bottom, right, top] = [glyph.left.field, glyph.bottom.field, glyph.right.field, glyph.top.field]
+
+    // It wont move with TypedArray
+    if (!(cds.data[left] instanceof Array)) cds.data[left] = Array.from(cds.data[left])
+    if (!(cds.data[right] instanceof Array)) cds.data[right] = Array.from(cds.data[right])
+    if (!(cds.data[top] instanceof Array)) cds.data[top] = Array.from(cds.data[top])
+    if (!(cds.data[bottom] instanceof Array)) cds.data[bottom] = Array.from(cds.data[bottom])
 
     for (const index of cds.selected.indices) {
       if ((left || right) && (dim == "width" || dim == "both")) {
